@@ -42,3 +42,18 @@ class WT310:
             "power_factor": values[5],
             "frequency": values[7]
         }
+    
+    def read_voltage(self):
+        return self.read_all()["voltage"]
+
+    def read_current(self):
+        return self.read_all()["current"]
+
+    def read_power(self):
+        return self.read_all()["power"]
+
+    def read_pf(self):
+        return self.read_all()["power_factor"]
+
+    def read_frequency(self):
+        return self.read_all()["frequency"]

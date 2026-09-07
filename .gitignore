@@ -1,0 +1,21 @@
+
+# Python generated files
+__pycache__/
+*.py[cod]
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Virtual environments
+.venv/
+venv/
+
+# Test cache
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# Test cache
+.pytest_cache/

@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+"""Send one newline-terminated command to KT002 Lua stdin via Lua_MOSI."""
+from __future__ import annotations
+import argparse
+import struct
+import sys
+import time
+import usb.core
+import usb.util
+
+VID = 0x0483
+PIDS = (0xFFFF, 0xFFFE, 0x374B)
+INTERFACE = 0
+EP_OUT = 0x01
+EP_IN = 0x81
+
+
+def xor8(data: bytes) -> int:
+    value = 0
+    for byte in data:
+        value ^= byte
+    return value
+
+
+def frame(payload: bytes) -> bytes:
+    return b"\xA5" + struct.pack("<I", len(payload)) + payload + bytes((xor8(payload), 0x5A))
+
+
+def lua_mosi_packet(content: bytes, caller_id: int = 0) -> bytes:
+    count = ((len(content) + 3) // 4) + 4
+    args = bytearray(count * 4)
+    struct.pack_into("<I", args, 0, len(content) << 16)
+    args[4:4 + len(content)] = content
+    request_header = (caller_id << 16) | (0x1F << 8) | 0x01
+    return frame(struct.pack("<I", request_header) + args)
+
+
+def find_device():
+    for pid in PIDS:
+        dev = usb.core.find(idVendor=VID, idProduct=pid)
+        if dev is not None:
+            return dev, pid
+    return None, None
+
+
+def parse_frame(raw: bytes):
+    if len(raw) < 11 or raw[0] != 0xA5:
+        return False, None
+    size = struct.unpack_from("<I", raw, 1)[0]
+    total = size + 7
+    if len(raw) < total:
+        return False, None
+    payload = raw[5:5 + size]
+    valid = raw[size + 5] == xor8(payload) and raw[size + 6] == 0x5A
+    return valid, payload
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("command", nargs="?", default="HELLO")
+    parser.add_argument("--timeout", type=int, default=3000)
+    args = parser.parse_args()
+
+    content = (args.command.rstrip("\r\n") + "\n").encode("utf-8")
+    dev, pid = find_device()
+    if dev is None:
+        print("ERROR: KT002 not found")
+        return 2
+
+    print(f"KT002 found: VID=0483 PID={pid:04X}")
+    print(f"TX command: {args.command!r} plus newline")
+    detached = False
+    claimed = False
+
+    try:
+        try:
+            if dev.is_kernel_driver_active(INTERFACE):
+                dev.detach_kernel_driver(INTERFACE)
+                detached = True
+        except (NotImplementedError, usb.core.USBError):
+            pass
+
+        usb.util.claim_interface(dev, INTERFACE)
+        claimed = True
+
+        while True:
+            try:
+                dev.read(EP_IN, 4096, timeout=50)
+            except usb.core.USBTimeoutError:
+                break
+
+        packet = lua_mosi_packet(content)
+        print("TX:", packet.hex(" ").upper())
+        print("TX bytes:", dev.write(EP_OUT, packet, timeout=2000))
+
+        deadline = time.monotonic() + args.timeout / 1000
+        received = bytearray()
+        while time.monotonic() < deadline:
+            try:
+                received.extend(dev.read(EP_IN, 4096, timeout=250))
+            except usb.core.USBTimeoutError:
+                continue
+            valid, payload = parse_frame(bytes(received))
+            if valid:
+                print("RX:", bytes(received).hex(" ").upper())
+                if payload and len(payload) >= 4:
+                    header = struct.unpack_from("<I", payload, 0)[0]
+                    print(f"RX header: 0x{header:08X}")
+                print("PASS: KT002 acknowledged Lua_MOSI")
+                print("Check the KT002 display for: Received: HELLO")
+                return 0
+
+        print("FAIL: no valid acknowledgement")
+        return 1
+    finally:
+        if claimed:
+            try:
+                usb.util.release_interface(dev, INTERFACE)
+            except usb.core.USBError:
+                pass
+        usb.util.dispose_resources(dev)
+        if detached:
+            try:
+                dev.attach_kernel_driver(INTERFACE)
+            except (NotImplementedError, usb.core.USBError):
+                pass
+
+
+if __name__ == "__main__":
+    sys.exit(main())

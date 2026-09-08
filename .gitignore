@@ -19,3 +19,13 @@ venv/
 
 # Test cache
 .pytest_cache/
+
+# Phase development backups
+*_before_*.py
+
+# Local reverse-engineering inputs and probe output
+analysis/kt002_phase2/*.dll
+analysis/kt002_phase2/*_output.txt
+analysis/kt002_phase2/lua_miso_il.txt
+analysis/kt002_phase2/callback_deliverer_il.txt
+analysis/kt002_phase2/data_received_il.txt

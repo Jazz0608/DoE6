@@ -1,0 +1,190 @@
+02EA ret              
+
+### <LuaPutCharHandler_Setup>d__3.MoveNext RVA=0x00007070
+000C ldarg.0          
+000D ldfld            Field:<>1__state
+0012 stloc.0          
+0013 ldarg.0          
+0014 ldfld            Field:<>4__this
+0019 stloc.1          
+001A ldloc.0          
+001B brfalse.s        111
+001D ldloc.1          
+001E ldfld            Field:protocolStack
+0023 ldstr            UserString:LuaPutCharHandler_Setup
+0028 ldc.i4.s         16
+002A ldc.i4.0         
+002B newarr           TypeRef:UInt32
+0030 ldarg.0          
+0031 ldfld            Field:callback
+0036 callvirt         MethodDef:GeneralRequest
+003B callvirt         MemberRef:GetAwaiter
+0040 stloc.s          local(0x0004)
+0042 ldloca.s         local(0x0004)
+0044 call             MemberRef:get_IsCompleted
+0049 brtrue.s         140
+004B ldarg.0          
+004C ldc.i4.0         
+004D dup              
+004E stloc.0          
+004F stfld            Field:<>1__state
+0054 ldarg.0          
+0055 ldloc.s          local(0x0004)
+0057 stfld            Field:<>u__1
+005C ldarg.0          
+005D ldflda           Field:<>t__builder
+0062 ldloca.s         local(0x0004)
+0064 ldarg.0          
+0065 call             MethodSpec:<dnfile.mdtable.MethodSpecRow object at 0x7fafb49de0>
+006A leave            243
+006F ldarg.0          
+0070 ldfld            Field:<>u__1
+0075 stloc.s          local(0x0004)
+0077 ldarg.0          
+0078 ldflda           Field:<>u__1
+007D initobj          TypeSpec:<dnfile.mdtable.TypeSpecRow object at 0x7fafb38100>
+0083 ldarg.0          
+0084 ldc.i4.m1        
+0085 dup              
+0086 stloc.0          
+0087 stfld            Field:<>1__state
+008C ldloca.s         local(0x0004)
+008E call             MemberRef:GetResult
+0093 stloc.3          
+0094 ldloc.3          
+0095 ldfld            Field:Reply
+009A call             MethodDef:GetPacketHeader
+009F ldc.i4.3         
+00A0 call             MethodDef:IsRequestReplyType
+00A5 brtrue.s         189
+00A7 ldloc.1          
+00A8 ldfld            Field:protocolStack
+00AD ldstr            UserString:LuaPutCharHandler_Setup
+00B2 ldloc.3          
+00B3 ldfld            Field:Reply
+00B8 callvirt         MethodDef:ThrowUnexpectedReply
+00BD ldloc.3          
+00BE ldfld            Field:CallerID
+00C3 stloc.2          
+00C4 leave.s          223
+00C6 stloc.s          local(0x0005)
+00C8 ldarg.0          
+00C9 ldc.i4.s         -2
+00CB stfld            Field:<>1__state
+00D0 ldarg.0          
+00D1 ldflda           Field:<>t__builder
+00D6 ldloc.s          local(0x0005)
+00D8 call             MemberRef:SetException
+00DD leave.s          243
+00DF ldarg.0          
+00E0 ldc.i4.s         -2
+00E2 stfld            Field:<>1__state
+00E7 ldarg.0          
+00E8 ldflda           Field:<>t__builder
+00ED ldloc.2          
+00EE call             MemberRef:SetResult
+00F3 ret              
+
+### <LuaPutCharHandler_Setup>d__3.SetStateMachine RVA=0x00007174
+0001 ldarg.0          
+00BD ldarg.0          
+00BE ldflda           Field:<>t__builder
+00C3 ldloc.s          local(0x0004)
+00C5 call             MemberRef:SetException
+00CA leave.s          223
+00CC ldarg.0          
+00CD ldc.i4.s         -2
+00CF stfld            Field:<>1__state
+00D4 ldarg.0          
+00D5 ldflda           Field:<>t__builder
+00DA call             MemberRef:SetResult
+00DF ret              
+
+### <Lua_MOSI>d__5.MoveNext RVA=0x00007284
+000C ldarg.0          
+000D ldfld            Field:<>1__state
+0012 stloc.0          
+0013 ldarg.0          
+0014 ldfld            Field:<>4__this
+0019 stloc.1          
+001A ldloc.0          
+001B brfalse.s        155
+001D ldarg.0          
+001E ldfld            Field:content
+0023 ldlen            
+0024 conv.i4          
+0025 ldc.i4.s         16
+0027 shl              
+0028 stloc.2          
+0029 ldarg.0          
+002A ldfld            Field:content
+002F ldlen            
+0030 conv.i4          
+0031 ldc.i4.3         
+0032 add              
+0033 ldc.i4.4         
+0034 div              
+0035 ldc.i4.4         
+0036 add              
+0037 newarr           TypeRef:UInt32
+003C stloc.3          
+003D ldloc.3          
+003E ldc.i4.0         
+003F ldloc.2          
+0040 stelem.i4        
+0041 ldarg.0          
+0042 ldfld            Field:content
+0047 ldc.i4.0         
+0048 ldloc.3          
+0049 ldc.i4.4         
+004A ldarg.0          
+004B ldfld            Field:content
+0050 ldlen            
+0051 conv.i4          
+0052 call             MemberRef:BlockCopy
+0057 ldloc.1          
+0058 ldfld            Field:protocolStack
+005D ldstr            UserString:Lua_MISO
+0062 ldc.i4.s         31
+0064 ldloc.3          
+0065 callvirt         MethodDef:GeneralRequest
+006A callvirt         MemberRef:GetAwaiter
+006F stloc.s          local(0x0005)
+0071 ldloca.s         local(0x0005)
+0073 call             MemberRef:get_IsCompleted
+0078 brtrue.s         184
+007A ldarg.0          
+007B ldc.i4.0         
+007C dup              
+007D stloc.0          
+007E stfld            Field:<>1__state
+0083 ldarg.0          
+0084 ldloc.s          local(0x0005)
+0086 stfld            Field:<>u__1
+008B ldarg.0          
+008C ldflda           Field:<>t__builder
+0091 ldloca.s         local(0x0005)
+0093 ldarg.0          
+0094 call             MethodSpec:<dnfile.mdtable.MethodSpecRow object at 0x7fafb49f40>
+0099 leave.s          282
+009B ldarg.0          
+009C ldfld            Field:<>u__1
+00A1 stloc.s          local(0x0005)
+00A3 ldarg.0          
+00A4 ldflda           Field:<>u__1
+00A9 initobj          TypeSpec:<dnfile.mdtable.TypeSpecRow object at 0x7fafb38100>
+00AF ldarg.0          
+00B0 ldc.i4.m1        
+00B1 dup              
+00B2 stloc.0          
+00B3 stfld            Field:<>1__state
+00B8 ldloca.s         local(0x0005)
+00BA call             MemberRef:GetResult
+00BF stloc.s          local(0x0004)
+00C1 ldloc.s          local(0x0004)
+00C3 ldfld            Field:Reply
+00C8 call             MethodDef:GetPacketHeader
+00CD ldc.i4.0         
+00CE call             MethodDef:IsRequestReplyType
+00D3 brtrue.s         236
+00D5 ldloc.1          

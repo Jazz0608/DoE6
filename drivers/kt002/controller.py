@@ -1,14 +1,14 @@
 """High-level controller for the POWER-Z KT002 direct-USB driver.
 
-Phase 2 adds verified Lua MISO text reception while preserving the Phase 1
-Protocol PING, Lua_MOSI ACK, USB transport, and Fixed PDO command behavior.
+Phase 3 integrates the Lua MISO parser and exposes structured high-level
+results while preserving the verified Phase 1 and Phase 2 APIs.
 """
 
 from __future__ import annotations
 
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 
 import usb.core
 
@@ -30,7 +30,12 @@ from drivers.kt002.constants import (
     SHIZUKU_REQUEST_PING,
 )
 from drivers.kt002.exceptions import KT002TimeoutError, KT002USBError
-from drivers.kt002.models import KT002Reply
+from drivers.kt002.models import (
+    KT002CommandResult,
+    KT002PDOResult,
+    KT002Reply,
+)
+from drivers.kt002.parser import parse_lua_result, raise_for_lua_error
 from drivers.kt002.protocol import extract_frames, pack_lua_mosi, pack_request
 from drivers.kt002.transport import KT002USBTransport
 
@@ -38,8 +43,9 @@ from drivers.kt002.transport import KT002USBTransport
 class KT002Controller:
     """Direct-USB controller for a POWER-Z KT002.
 
-    Phase 1 methods continue to return protocol acknowledgements. Phase 2
-    methods ending in ``_wait_result`` additionally wait for Lua MISO text.
+    Phase 1 methods return protocol acknowledgements. Phase 2 methods ending in
+    ``_wait_result`` return the matching Lua MISO text line. Phase 3 methods
+    ending in ``_result`` return structured models and raise typed exceptions.
     """
 
     VID = KT002_USB_VID
@@ -165,11 +171,8 @@ class KT002Controller:
         expected_header: int,
         timeout: float | None = None,
     ) -> KT002Reply:
-        """Write a request and wait for the exact expected ACK Header.
+        """Write a request and wait for the exact expected ACK Header."""
 
-        Periodic Reports and Lua MISO text Reports are ignored here. This keeps
-        Phase 1 ping() and send_command() compatible after MISO registration.
-        """
         self._require_connected()
         effective_timeout = self.timeout if timeout is None else float(timeout)
         if effective_timeout <= 0:
@@ -194,6 +197,7 @@ class KT002Controller:
     @classmethod
     def decode_lua_miso_text(cls, reply: KT002Reply) -> str | None:
         """Decode one verified Type 0x10 Lua text Report."""
+
         if reply.message_type != cls.LUA_TEXT_REPORT_TYPE:
             return None
         if len(reply.payload) < 4:
@@ -202,6 +206,7 @@ class KT002Controller:
 
     def register_lua_miso(self, *, timeout: float = 2.0) -> KT002Reply:
         """Register Lua putchar Reports and return ACK 0x80010003."""
+
         if timeout <= 0:
             raise ValueError("timeout must be greater than zero")
 
@@ -224,26 +229,29 @@ class KT002Controller:
                 "Lua putchar setup ACK 0x80010003 was not received"
             )
 
-    def send_command_wait_result(
+    def _send_command_wait_line(
         self,
         command: str,
         *,
-        expected: str,
-        timeout: float = 5.0,
+        accept: Callable[[str], bool],
+        timeout: float,
     ) -> str:
-        """Send Lua_MOSI and wait for both ACK and expected Lua MISO text."""
+        """Send a command and wait for ACK plus an accepted Lua result line.
+
+        Complete ERROR lines are immediately converted to typed Phase 3
+        exceptions. Periodic non-text Reports are ignored.
+        """
+
         if not isinstance(command, str):
             raise TypeError("command must be a string")
-        if not isinstance(expected, str):
-            raise TypeError("expected must be a string")
-
-        normalized = command.strip()
-        if not normalized:
-            raise ValueError("command must not be empty")
-        if not expected:
-            raise ValueError("expected must not be empty")
+        if not callable(accept):
+            raise TypeError("accept must be callable")
         if timeout <= 0:
             raise ValueError("timeout must be greater than zero")
+
+        normalized = command.strip().upper()
+        if not normalized:
+            raise ValueError("command must not be empty")
 
         with self._lock:
             self._require_connected()
@@ -256,38 +264,83 @@ class KT002Controller:
             )
 
             ack_received = False
-            text_buffer = ""
-            matched_line: str | None = None
+            accepted_line: str | None = None
+            pending_text = ""
             deadline = time.monotonic() + timeout
 
             for reply in self._read_frames_until(deadline):
                 if reply.header == self.LUA_MOSI_ACK_HEADER:
                     ack_received = True
-                    if matched_line is not None:
-                        return matched_line
+                    if accepted_line is not None:
+                        return accepted_line
                     continue
 
                 text = self.decode_lua_miso_text(reply)
                 if text is None:
                     continue
 
-                text_buffer += text
-                if expected in text_buffer:
-                    matched_line = expected
-                    for line in text_buffer.splitlines():
-                        if expected in line:
-                            matched_line = line
-                            break
-                    if ack_received:
-                        return matched_line
+                pending_text += text
+                while "\n" in pending_text:
+                    line, pending_text = pending_text.split("\n", 1)
+                    line = line.rstrip("\r").strip()
+                    if not line:
+                        continue
+
+                    raise_for_lua_error(line, command=normalized)
+                    if accept(line):
+                        accepted_line = line
+                        if ack_received:
+                            return accepted_line
+
+            trailing_line = pending_text.rstrip("\r").strip()
+            if trailing_line:
+                raise_for_lua_error(trailing_line, command=normalized)
+                if accept(trailing_line) and ack_received:
+                    return trailing_line
 
             if not ack_received:
                 raise KT002TimeoutError(
                     "Lua_MOSI ACK 0x80000000 was not received"
                 )
             raise KT002TimeoutError(
-                f"Lua MISO text {expected!r} was not received before timeout"
+                f"No accepted Lua MISO result for {normalized!r} before timeout"
             )
+
+    def send_command_wait_result(
+        self,
+        command: str,
+        *,
+        expected: str,
+        timeout: float = 5.0,
+    ) -> str:
+        """Phase 2 API: return the text line containing ``expected``."""
+
+        if not isinstance(expected, str):
+            raise TypeError("expected must be a string")
+        if not expected:
+            raise ValueError("expected must not be empty")
+
+        return self._send_command_wait_line(
+            command,
+            accept=lambda line: expected in line,
+            timeout=timeout,
+        )
+
+    def send_command_result(
+        self,
+        command: str,
+        *,
+        accept: Callable[[str], bool],
+        timeout: float = 5.0,
+    ) -> KT002CommandResult | KT002PDOResult:
+        """Phase 3 API: return a structured result for a completed command."""
+
+        line = self._send_command_wait_line(
+            command,
+            accept=accept,
+            timeout=timeout,
+        )
+        return parse_lua_result(line, command=command)
 
     def ping(self) -> KT002Reply:
         with self._lock:
@@ -303,7 +356,8 @@ class KT002Controller:
         *,
         newline: bool = False,
     ) -> KT002Reply:
-        """Send Lua_MOSI and return its exact protocol ACK."""
+        """Phase 1 API: send Lua_MOSI and return its exact protocol ACK."""
+
         if not isinstance(command, str):
             raise TypeError("command must be a string")
 
@@ -329,6 +383,18 @@ class KT002Controller:
             timeout=timeout,
         )
 
+    def lua_ping_result(self, *, timeout: float = 5.0) -> KT002CommandResult:
+        """Return a structured PING result."""
+
+        result = self.send_command_result(
+            "PING",
+            accept=lambda line: line == "PONG:KT002",
+            timeout=timeout,
+        )
+        if not isinstance(result, KT002CommandResult):
+            raise TypeError("PING did not produce KT002CommandResult")
+        return result
+
     def initialize_pd(self) -> KT002Reply:
         return self.send_command("INIT")
 
@@ -339,11 +405,7 @@ class KT002Controller:
         return self.send_command("STATUS")
 
     def set_voltage(self, voltage: int) -> KT002Reply:
-        if voltage not in self.ALLOWED_VOLTAGES:
-            allowed = ", ".join(str(value) for value in self.ALLOWED_VOLTAGES)
-            raise ValueError(
-                f"unsupported voltage {voltage}; allowed: {allowed}"
-            )
+        self._validate_voltage(voltage)
         return self.send_command(f"PD_{voltage}V")
 
     def set_voltage_wait_result(
@@ -352,17 +414,43 @@ class KT002Controller:
         *,
         timeout: float = 8.0,
     ) -> str:
-        """Request a Fixed PDO and wait for its Lua OK result line."""
-        if voltage not in self.ALLOWED_VOLTAGES:
-            allowed = ", ".join(str(value) for value in self.ALLOWED_VOLTAGES)
-            raise ValueError(
-                f"unsupported voltage {voltage}; allowed: {allowed}"
-            )
+        """Phase 2 API: return the successful PDO result text line."""
+
+        self._validate_voltage(voltage)
         return self.send_command_wait_result(
             f"PD_{voltage}V",
             expected=f"OK:PD_{voltage}V:",
             timeout=timeout,
         )
+
+    def set_voltage_result(
+        self,
+        voltage: int,
+        *,
+        timeout: float = 8.0,
+    ) -> KT002PDOResult:
+        """Phase 3 API: request a Fixed PDO and return structured data."""
+
+        self._validate_voltage(voltage)
+        command = f"PD_{voltage}V"
+        result = self.send_command_result(
+            command,
+            accept=lambda line: (
+                line.startswith(f"OK:PD_{voltage}V:")
+                or line.startswith("ERROR:")
+            ),
+            timeout=timeout,
+        )
+        if not isinstance(result, KT002PDOResult):
+            raise TypeError("PDO request did not produce KT002PDOResult")
+        return result
+
+    def _validate_voltage(self, voltage: int) -> None:
+        if voltage not in self.ALLOWED_VOLTAGES:
+            allowed = ", ".join(str(value) for value in self.ALLOWED_VOLTAGES)
+            raise ValueError(
+                f"unsupported voltage {voltage}; allowed: {allowed}"
+            )
 
     def release(self) -> KT002Reply:
         return self.send_command("RELEASE")

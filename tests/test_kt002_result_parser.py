@@ -152,6 +152,36 @@ class TestKT002TypedErrors(unittest.TestCase):
         self.assertEqual(error.command, "PD_12V")
         self.assertEqual(error.raw_text, "ERROR:PDO_12V_NOT_FOUND")
 
+    def test_native_no_specified_pdo_becomes_pdo_not_found(self) -> None:
+        raw_text = (
+            "0:/lua/user/onBoot_disabled.lua:383: "
+            "Request: No specified PDO."
+        )
+
+        with self.assertRaises(KT002PDONotFoundError) as context:
+            parse_lua_result(raw_text, command="PD_20V")
+
+        error = context.exception
+        self.assertEqual(error.requested_voltage, 20)
+        self.assertEqual(error.command, "PD_20V")
+        self.assertEqual(error.raw_text, raw_text)
+
+    def test_native_no_specified_pdo_requires_pd_command(self) -> None:
+        raw_text = (
+            "0:/lua/user/onBoot_disabled.lua:383: "
+            "Request: No specified PDO."
+        )
+
+        with self.assertRaises(KT002LuaError) as context:
+            parse_lua_result(raw_text, command="PING")
+
+        self.assertNotIsInstance(
+            context.exception,
+            KT002PDONotFoundError,
+        )
+        self.assertEqual(context.exception.command, "PING")
+        self.assertEqual(context.exception.raw_text, raw_text)
+
     def test_pdo_request_failed_error(self) -> None:
         with self.assertRaises(KT002PDORequestError) as context:
             parse_lua_result(

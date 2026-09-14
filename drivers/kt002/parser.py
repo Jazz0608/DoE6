@@ -37,6 +37,13 @@ _PD_INITIALIZED_PATTERN = re.compile(
     r"^OK:PD_INITIALIZED:(?P<count>[0-9]+)$"
 )
 
+_PD_COMMAND_PATTERN = re.compile(r"^PD_(?P<voltage>[0-9]+)V$")
+
+# KT002 firmware-native Lua error observed after swapping from a charger that
+# supports the requested PDO to one that does not. The text may not include an
+# ERROR: prefix, so it must be classified before the generic ERROR-line gate.
+_NO_SPECIFIED_PDO_MARKER = "Request: No specified PDO."
+
 
 _PD_SOURCE_ERRORS = {
     "ERROR:NO_PD_SOURCE": "No USB-PD source is attached",
@@ -119,6 +126,27 @@ def raise_for_lua_error(
     raw_text = normalize_lua_line(text)
     normalized_command = normalize_command(command)
 
+    if _NO_SPECIFIED_PDO_MARKER in raw_text:
+        command_match = (
+            _PD_COMMAND_PATTERN.fullmatch(normalized_command)
+            if normalized_command is not None
+            else None
+        )
+        if command_match is not None:
+            voltage = int(command_match.group("voltage"))
+            raise KT002PDONotFoundError(
+                f"{voltage}V Fixed PDO is not available",
+                requested_voltage=voltage,
+                raw_text=raw_text,
+                command=normalized_command,
+            )
+
+        raise KT002LuaError(
+            "KT002 reported no specified PDO without a PD voltage command",
+            raw_text=raw_text,
+            command=normalized_command,
+        )
+
     if not raw_text.startswith("ERROR:"):
         return
 
@@ -189,6 +217,8 @@ def parse_lua_result(
     raw_text = normalize_lua_line(text)
     normalized_command = normalize_command(command)
 
+    # Classify both conventional ERROR lines and firmware-native Lua errors.
+    # Some KT002 errors begin with a source location such as ``0:/lua/...``.
     raise_for_lua_error(raw_text, command=normalized_command)
 
     if _PDO_OK_PATTERN.fullmatch(raw_text) is not None:

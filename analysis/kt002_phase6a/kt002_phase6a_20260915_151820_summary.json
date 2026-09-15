@@ -1,0 +1,69 @@
+{
+  "test": "KT002 Phase 6A minimum stability and stress",
+  "started_at": "2026-09-15T07:18:20.626+00:00",
+  "finished_at": "2026-09-15T07:57:07.781+00:00",
+  "duration_s": 2327.156,
+  "configuration": {
+    "protocol_ping_count": 100,
+    "lua_ping_count": 100,
+    "pdo_cycles": 20,
+    "pdo_sequence": [
+      5,
+      9,
+      12,
+      15,
+      20,
+      5
+    ],
+    "pdo_pause_s": 1.0,
+    "tolerance_v": 1.0,
+    "continue_on_error": false
+  },
+  "operations": {
+    "total": 321,
+    "success": 321,
+    "failure": 0,
+    "success_rate_percent": 100.0,
+    "exception_counts": {}
+  },
+  "latency": {
+    "all": {
+      "count": 321,
+      "min_s": 0.098826,
+      "mean_s": 6.872788,
+      "max_s": 14.999797
+    },
+    "protocol_ping": {
+      "count": 100,
+      "min_s": 0.098826,
+      "mean_s": 2.033885,
+      "max_s": 14.999797
+    },
+    "lua_ping": {
+      "count": 100,
+      "min_s": 0.102742,
+      "mean_s": 4.762763,
+      "max_s": 7.902655
+    },
+    "pdo": {
+      "count": 120,
+      "min_s": 1.21159,
+      "mean_s": 12.600789,
+      "max_s": 14.957716
+    }
+  },
+  "resources": {
+    "initial_rss_kib": 16672,
+    "final_rss_kib": 18848,
+    "rss_delta_kib": 2176,
+    "initial_fd_count": 5,
+    "final_fd_count": 9,
+    "fd_delta": 4
+  },
+  "safety": {
+    "final_5v_confirmed": true,
+    "usb_closed": true
+  },
+  "pass": true,
+  "csv_log": "analysis/kt002_phase6a/kt002_phase6a_20260915_151820.csv"
+}

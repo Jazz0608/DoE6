@@ -33,3 +33,6 @@ analysis/kt002_phase2/data_received_il.txt
 # KT002 generated Phase 6A logs
 analysis/kt002_phase6a/*.csv
 analysis/kt002_phase6a/kt002_phase6a_20260915_150913_summary.json
+
+# Vim swap files
+*.swp
